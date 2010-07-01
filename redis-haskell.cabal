@@ -35,7 +35,7 @@ exposed-modules:     Database.Redis,
                      Database.Redis.Core,
                      Database.Redis.SubHub
 
-extensions:          OverloadedStrings
+extensions:          OverloadedStrings,DoAndIfThenElse
 ghc-options:         -Wall
 ghc-prof-options:    -prof -auto-all
 
