@@ -1,115 +1,106 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
 module Database.Redis.Internal where
 
 import Control.Monad.Trans        ( MonadIO, liftIO )
-import Control.Failure            ( MonadFailure, failure )
-import Data.Convertible.Base      ( convertUnsafe )
-import Data.Convertible.Instances ( )
+import Control.Failure            ( Failure )
 import Database.Redis.Core
-import System.IO                  ( hGetChar )
-import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as S
+import Network.Socket.ByteString (recv, sendAll)
+import Data.Binary.Put (runPut, Put, putLazyByteString)
+import Data.Attoparsec (Parser, parse, Result(..), takeTill, string)
+import qualified Data.Attoparsec as Atto
 
 -- ---------------------------------------------------------------------------
 -- Command
 -- 
+--
 
-command :: (MonadIO m, MonadFailure RedisError m) => Server -> m a -> m RedisValue
-command r f = f >> getReply r
+command :: (MonadIO m, Failure RedisError m) => Server -> IO () -> m RedisValue
+command r f = liftIO $ errorWrap (f >> getReply r Nothing)
 
-multiBulk :: (MonadIO m, MonadFailure RedisError m) 
-           => Server -> T.Text -> [T.Text] -> m ()
-multiBulk (Server h) command' vs = do
-    let vs' = concatMap (\a -> ["$" ~~ (toParam $ T.length a), a]) $ [command'] ++ vs
-    liftIO $ TIO.hPutStrLn h $ "*" ~~ (toParam $ 1 + length vs)
-    mapM_ (liftIO . TIO.hPutStrLn h) vs'
+multiBulk :: Server -> B.ByteString -> [B.ByteString] -> IO ()
+multiBulk (Server s) command' vs = do
+    let output = runPut $ formatRedisRequest $ command' : vs
+    liftIO $ sendAll s $ (S.concat . B.toChunks) output
+    return ()
 
-multiBulkT2 :: (MonadIO m, MonadFailure RedisError m) 
-           => Server -> T.Text -> [(T.Text, T.Text)] -> m ()
+multiBulkT2 :: Server -> B.ByteString -> [(B.ByteString, B.ByteString)] -> IO ()
 multiBulkT2 r command' kvs = do
     multiBulk r command' $ concatMap (\kv -> [fst kv] ++ [snd kv]) kvs
 
+eol :: B.ByteString
+eol = "\r\n"
+
+toParam :: Show a => a -> B.ByteString
+toParam = B.pack . show
+
+formatRedisRequest :: [B.ByteString] -> Put 
+formatRedisRequest allVs = do
+    putArgCount  allVs
+    putArgs      allVs
+  where
+    putArgCount :: [B.ByteString] -> Put
+    putArgCount xs = mapM_ putLazyByteString ["*", toParam $ length xs, eol]
+
+    putArgs :: [B.ByteString] -> Put
+    putArgs xs = mapM_ putArg xs
+
+    putArg :: B.ByteString -> Put
+    putArg x = mapM_ putLazyByteString ["$", toParam $ B.length x, eol, x, eol]
+
 -- ---------------------------------------------------------------------------
--- Reply
+-- Reply, using attoparsec
 -- 
 
+getReply :: Server -> Maybe (S.ByteString -> Result RedisValue) -> IO RedisValue
+getReply r Nothing = case parse parseReply "" of
+    Partial continueParse -> getReply r (Just continueParse)
+    _ -> fail "unexpected result from parser"
 
-getReply :: (MonadIO m, MonadFailure RedisError m) => Server -> m RedisValue
-getReply r@(Server h) = do
-    prefix <- liftIO $ hGetChar h
-    getReplyType r prefix
+getReply r@(Server h) (Just continueParse) = do
+    buf <- liftIO $ recv h 8096
+    {- TODO: handle length == 0 -}
+    case (continueParse buf) of 
+        Done _ result -> return result
+        Partial continueParse' -> getReply r (Just continueParse') 
+        Fail _ _ msg -> error $ "attoparsec:" ++ msg
 
-getReplyType :: (MonadIO m, MonadFailure RedisError m) 
-             => Server -> Char -> m RedisValue
-getReplyType r prefix =
+parseReply :: Parser RedisValue
+parseReply = do
+    prefix <- Atto.take 1
     case prefix of
-        '$' -> bulkReply r
-        ':' -> integerReply r
-        '+' -> singleLineReply r
-        '-' -> singleLineReply r >>= \(RedisString m) -> failure $ ServerError m
-        '*' -> multiBulkReply r
-        _ -> singleLineReply r
+        ":" -> integerReply
+        {-"$" -> parseBulk-}
+        {-"+" -> parseSingleLine-}
+        {-"-" -> parseError-}
+        {-"*" -> parseMultiBulk-}
+        _ -> error "unsupported"
 
-bulkReply :: (MonadIO m, MonadFailure RedisError m) => Server -> m RedisValue
-bulkReply r@(Server h) = do
-    l <- liftIO $ TIO.hGetLine h
-    let bytes = convertUnsafe l::Int
-    if bytes == -1
-        then return $ RedisNil
-        else do
-            v <- takeChar bytes r
-            _ <- liftIO $ TIO.hGetLine h -- cleans up
-            return $ RedisString v
+integerReply :: Parser RedisValue
+integerReply = do
+    i <- readIntLine
+    return $ RedisInteger i
 
-integerReply :: (MonadIO m, MonadFailure RedisError m) => Server -> m RedisValue
-integerReply (Server h) = do
-    l <- liftIO $ TIO.hGetLine h
-    return $ RedisInteger (convertUnsafe l::Int)
+readIntLine :: Parser Int
+readIntLine = do
+    line <- readLineContents
+    return $ read $ S.unpack line
 
-singleLineReply :: (MonadIO m, MonadFailure RedisError m) => Server -> m RedisValue
-singleLineReply (Server h) = do
-    l <- liftIO $ TIO.hGetLine h
-    return $ RedisString l
+readLineContents :: Parser S.ByteString
+readLineContents = do
+    v <- takeTill (==13)
+    _ <- string "\r\n"
+    return v
 
-multiBulkReply :: (MonadIO m, MonadFailure RedisError m) => Server -> m RedisValue
-multiBulkReply r@(Server h) = do
-    l <- liftIO $ TIO.hGetLine h
-    let items = convertUnsafe l::Int
-    multiBulkReply' r items []
 
-multiBulkReply' :: (MonadIO m, MonadFailure RedisError m) 
-                => Server -> Int -> [RedisValue] -> m RedisValue
-multiBulkReply' _ 0 values = return $ RedisMulti values
-multiBulkReply' r@(Server h) n values = do
-    _ <- liftIO $ hGetChar h -- discard the type data since we know it's a bulk string
-    v <- bulkReply r
-    multiBulkReply' r (n - 1) (values ++ [v])
-
-takeChar :: (MonadIO m, MonadFailure RedisError m) 
-         => Int -> Server -> m (T.Text)
-takeChar n r = takeChar' n r ""
-
-takeChar' :: (MonadIO m, MonadFailure RedisError m) 
-          => Int -> Server -> T.Text -> m (T.Text)
-takeChar' 0 _ s = return s
-takeChar' n r@(Server h) s = do
-    c <- liftIO $ hGetChar h
-    (takeChar' (n - 1) r (s ~~ (T.singleton c)))
-
--- ---------------------------------------------------------------------------
--- Helpers
--- 
-
-(~~) :: T.Text -> T.Text -> T.Text
-(~~) = T.append
-
-boolify :: (Monad m) => m RedisValue -> m (Bool)
-boolify v' = do
-    v <- v'
-    return $ case v of RedisString "OK" -> True
-                       RedisInteger 1   -> True
-                       _                -> False
+boolify :: (MonadIO m, Failure RedisError m) => m RedisValue -> m Bool
+boolify v = do
+    v' <- v
+    return $ case v' of RedisString "OK" -> True
+                        RedisInteger 1   -> True
+                        _                -> False
 
 discard :: (Monad a) => a b -> a ()
 discard f = f >> return ()

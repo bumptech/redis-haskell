@@ -2,45 +2,35 @@
 
 module Database.Redis.Core where
 
+import Control.Monad.Trans        ( MonadIO, liftIO )
 import Control.Exception          ( Exception(..), finally )
-import Data.Convertible.Base      ( ConvertSuccess, convertSuccess )
-import Data.Convertible.Instances ( )
 import Data.Typeable              ( Typeable )
-import Network                    ( HostName, PortID(..), PortNumber, 
-                                    connectTo, withSocketsDo )
-import System.IO                  ( BufferMode(..), Handle, Newline(..), 
-                                    NewlineMode(..), hClose, hSetBuffering, 
-                                    hSetNewlineMode )
-import qualified Data.Text as T
+import Network                    ( HostName, PortNumber, withSocketsDo)
+import Network.Socket             ( getAddrInfo, defaultHints, addrFamily, 
+                                    Socket, socket, sClose, defaultProtocol,
+                                    addrAddress, defaultProtocol, SocketType(Stream),
+                                    AddrInfo(..), AddrInfoFlag(..), Family(..))
+import Control.Failure            ( Failure, wrapFailure )
+import qualified Network.Socket
+                                   
+import qualified Data.ByteString.Lazy.Char8 as B
 
 -- ---------------------------------------------------------------------------
 -- Types
 -- 
 
 -- | Provides a wrapper for a handle to a Redis server.
-newtype Server = Server { handle :: Handle }
+newtype Server = Server { redisSocket :: Socket}
 
 -- | Provides a type for a key parameter for Redis commands.
-type RedisKey = T.Text
+type RedisKey = B.ByteString
 
 -- | Provides a type for a value parameter for Redis commands, where a value 
 -- parameter is any parameter that isn't a key.
-type RedisParam = T.Text
-
--- | Converts some type to a @RedisKey@ using a @ConvertSuccess@ instance.
-toKey :: ConvertSuccess a T.Text => a -> RedisKey
-toKey = convertSuccess
-
--- | Converts some type to a @RedisParam@ using a @ConvertSuccess@ instance.
-toParam :: ConvertSuccess a T.Text => a -> RedisParam
-toParam = convertSuccess
-
--- | Convenience function for converting an @Int@ to RedisParam.
-iToParam :: Int -> T.Text
-iToParam = convertSuccess
+type RedisParam = B.ByteString
 
 -- | Data type representing a return value from a Redis command.
-data RedisValue = RedisString T.Text
+data RedisValue = RedisString B.ByteString
                 | RedisInteger Int
                 | RedisMulti [RedisValue] 
                 | RedisNil
@@ -50,10 +40,13 @@ data RedisValue = RedisString T.Text
 -- Failure
 -- 
 
-data RedisError = ServerError T.Text
+data RedisError = ServerError String
                   deriving (Show, Typeable)
 
 instance Exception RedisError
+
+errorWrap :: IO a -> IO a
+errorWrap f = wrapFailure (\e -> ServerError $ show e) f
 
 -- ---------------------------------------------------------------------------
 -- Connection
@@ -61,20 +54,29 @@ instance Exception RedisError
 
 -- | Establishes a connection with the Redis server at the given host and 
 -- port.
-connect :: HostName -> PortNumber -> IO Server
+connect :: (MonadIO m, Failure RedisError m) => HostName -> PortNumber -> m Server
 connect host port =
-    withSocketsDo $ do
-        h <- connectTo host (PortNumber port)
-        hSetNewlineMode h (NewlineMode CRLF CRLF)
-        hSetBuffering h NoBuffering
-        return $ Server h
+    liftIO $ errorWrap (
+        withSocketsDo $ do
+            addrinfos <- getAddrInfo
+                         (Just defaultHints {
+                                addrFlags = [AI_PASSIVE],
+                                addrFamily = AF_INET
+                                }) 
+                         (Just host)
+                         (Just $ show port)
+            let addr = head addrinfos
+            sock <- socket (addrFamily addr) Stream defaultProtocol
+            Network.Socket.connect sock $ addrAddress addr
+            return $ Server sock
+        )
 
 -- | Disconnects a server handle.
 disconnect :: Server -> IO ()
-disconnect = hClose . handle
+disconnect = sClose . redisSocket
 
 -- | Runs some action with a connection to the Redis server at the given host 
--- and port.
+-- and port
 withRedisConn :: HostName -> PortNumber -> (Server -> IO ()) -> IO ()
 withRedisConn host port action = do
     r <- connect host port
@@ -84,4 +86,3 @@ withRedisConn host port action = do
 -- localhost on port 6379 (this is the default Redis port).
 withRedisConn' :: (Server -> IO ()) -> IO ()
 withRedisConn' = withRedisConn "localhost" 6379
-
