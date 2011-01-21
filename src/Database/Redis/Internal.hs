@@ -33,6 +33,9 @@ multiBulkT2 r command' kvs = do
 eol :: B.ByteString
 eol = "\r\n"
 
+seol :: S.ByteString
+seol = "\r\n"
+
 toParam :: Show a => a -> B.ByteString
 toParam = B.pack . show
 
@@ -72,11 +75,31 @@ parseReply = do
     prefix <- Atto.take 1
     case prefix of
         ":" -> integerReply
-        {-"$" -> parseBulk-}
-        {-"+" -> parseSingleLine-}
-        {-"-" -> parseError-}
-        {-"*" -> parseMultiBulk-}
-        _ -> error "unsupported"
+        "$" -> bulkReply
+        "+" -> singleLineReply
+        "-" -> errorReply >> return RedisNil 
+        "*" -> multiBulkReply
+        _ -> error "redis protocol error: unknown reply type!"
+
+singleLineReply :: Parser RedisValue
+singleLineReply = readLineContents >>= \s-> return $ RedisString s
+
+errorReply :: Parser ()
+errorReply = readLineContents >>= \s -> error $ "redis daemon error: " ++ (S.unpack s)
+
+
+bulkReply :: Parser RedisValue
+bulkReply = do
+    i <- readIntLine
+    s <- Atto.take i
+    _ <- string seol
+    return $ RedisString s
+
+multiBulkReply :: Parser RedisValue
+multiBulkReply = do
+    numParams <- readIntLine
+    args <- mapM (\_-> string "$" >> bulkReply) [1..numParams]
+    return $ RedisMulti args
 
 integerReply :: Parser RedisValue
 integerReply = do
@@ -91,7 +114,7 @@ readIntLine = do
 readLineContents :: Parser S.ByteString
 readLineContents = do
     v <- takeTill (==13)
-    _ <- string "\r\n"
+    _ <- string seol
     return v
 
 

@@ -160,24 +160,24 @@ llen :: (MonadIO m, Failure RedisError m)
 llen r k = command r $ multiBulk r "LLEN" [k]
 
 lrange :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
-lrange r k start end = command r $ multiBulk r "LRANGE" [k, start, end]
+       => Server -> RedisKey -> Int -> Int -> m RedisValue
+lrange r k start end = command r $ multiBulk r "LRANGE" [k, toParam start, toParam end]
 
 ltrim :: (MonadIO m, Failure RedisError m) 
-      => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
-ltrim r k start end = command r $ multiBulk r "LTRIM" [k, start, end]
+      => Server -> RedisKey -> Int -> Int -> m RedisValue
+ltrim r k start end = command r $ multiBulk r "LTRIM" [k, toParam start, toParam end]
 
 lindex :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisKey -> RedisParam -> m RedisValue
-lindex r k index = command r $ multiBulk r "LINDEX" [k, index]
+       => Server -> RedisKey -> Int -> m RedisValue
+lindex r k index = command r $ multiBulk r "LINDEX" [k, toParam index]
 
 lset :: (MonadIO m, Failure RedisError m) 
-     => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
-lset r k index value = command r $ multiBulk r "LSET" [k, index, value]
+     => Server -> RedisKey -> Int -> RedisParam -> m RedisValue
+lset r k index value = command r $ multiBulk r "LSET" [k, toParam index, value]
 
 lrem :: (MonadIO m, Failure RedisError m) 
-     => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
-lrem r k count value = command r $ multiBulk r "LREM" [k, count, value]
+     => Server -> RedisKey -> Int -> RedisParam -> m RedisValue
+lrem r k index value = command r $ multiBulk r "LREM" [k, toParam index, value]
 
 lpop :: (MonadIO m, Failure RedisError m) 
      => Server -> RedisKey -> m RedisValue

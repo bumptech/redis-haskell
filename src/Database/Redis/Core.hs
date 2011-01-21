@@ -14,6 +14,7 @@ import Control.Failure            ( Failure, wrapFailure )
 import qualified Network.Socket
                                    
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as S
 
 -- ---------------------------------------------------------------------------
 -- Types
@@ -30,7 +31,7 @@ type RedisKey = B.ByteString
 type RedisParam = B.ByteString
 
 -- | Data type representing a return value from a Redis command.
-data RedisValue = RedisString B.ByteString
+data RedisValue = RedisString S.ByteString
                 | RedisInteger Int
                 | RedisMulti [RedisValue] 
                 | RedisNil
