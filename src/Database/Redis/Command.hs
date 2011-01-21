@@ -72,20 +72,20 @@ dbsize :: (MonadIO m, Failure RedisError m)
 dbsize r = command r $ multiBulk r "DBSIZE" []
 
 expire :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisKey -> RedisParam -> m RedisValue
-expire r k secs = command r $ multiBulk r "RENAMEX" [k, secs]
+       => Server -> RedisKey -> Int -> m RedisValue
+expire r k secs = command r $ multiBulk r "RENAMEX" [k, toParam secs]
 
 ttl :: (MonadIO m, Failure RedisError m) 
     => Server -> RedisKey -> m RedisValue
 ttl r k = command r $ multiBulk r "TTL" [k]
 
 select :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisParam -> m Bool
-select r index = boolify $ command r $ multiBulk r "SELECT" [index]
+       => Server -> Int -> m Bool
+select r index = boolify $ command r $ multiBulk r "SELECT" [toParam index]
 
 move :: (MonadIO m, Failure RedisError m) 
-     => Server -> RedisKey -> RedisParam -> m RedisValue
-move r k index = command r $ multiBulk r "MOVE" [k, index]
+     => Server -> RedisKey -> Int -> m RedisValue
+move r k index = command r $ multiBulk r "MOVE" [k, toParam index]
 
 flushdb :: (MonadIO m, Failure RedisError m) 
         => Server -> m Bool
@@ -132,16 +132,16 @@ incr :: (MonadIO m, Failure RedisError m)
 incr r k = command r $ multiBulk r "INCR" [k]
 
 incrby :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisKey -> RedisParam -> m RedisValue
-incrby r k v = command r $ multiBulk r "INCRBY" [k, v]
+       => Server -> RedisKey -> Int -> m RedisValue
+incrby r k v = command r $ multiBulk r "INCRBY" [k, toParam v]
 
 decr :: (MonadIO m, Failure RedisError m) 
      => Server -> RedisKey -> m RedisValue
 decr r k = command r $ multiBulk r "DECR" [k]
 
 decrby :: (MonadIO m, Failure RedisError m) 
-       => Server -> RedisKey -> RedisParam -> m RedisValue
-decrby r k v = command r $ multiBulk r "DECRBY" [k, v]
+       => Server -> RedisKey -> Int -> m RedisValue
+decrby r k v = command r $ multiBulk r "DECRBY" [k, toParam v]
 
 -- ---------------------------------------------------------------------------
 -- List
@@ -274,6 +274,12 @@ zcardinality k = "ZCARD"
 score k element = "ZSCORE"
 removeRangeByScore k min max = "ZREMRANGEBYSCORE"
 -}
+
+-- ---------------------------------------------------------------------------
+-- Hashes
+-- 
+-- TBD
+
 
 -- ---------------------------------------------------------------------------
 -- Sort
