@@ -52,7 +52,7 @@ formatRedisRequest allVs = do
 
 -- ---------------------------------------------------------------------------
 -- Reply, using attoparsec
--- 
+--
 
 getReply :: Server -> Maybe (S.ByteString -> Result RedisValue) -> IO RedisValue
 getReply r Nothing = case parse parseReply "" of
@@ -61,11 +61,12 @@ getReply r Nothing = case parse parseReply "" of
 
 getReply r@(Server h) (Just continueParse) = do
     buf <- liftIO $ recv h 8096
-    {- TODO: handle length == 0 -}
-    case (continueParse buf) of 
-        Done _ result -> return result
-        Partial continueParse' -> getReply r (Just continueParse') 
-        Fail _ _ msg -> error $ "attoparsec:" ++ msg
+    case (S.length buf) of
+        0 -> error "connection closed by remote redis server"
+        _ -> case (continueParse buf) of
+                Done _ result -> return result
+                Partial continueParse' -> getReply r (Just continueParse')
+                Fail _ _ msg -> error $ "attoparsec:" ++ msg
 
 parseReply :: Parser RedisValue
 parseReply = do
