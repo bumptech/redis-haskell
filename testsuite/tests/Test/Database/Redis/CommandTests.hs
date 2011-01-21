@@ -111,20 +111,20 @@ testIncr = testWithConn "incr" $ \r -> do
 
 testIncrby :: Test
 testIncrby = testWithConn "incrby" $ \r -> do
-    res <- incrby r "counter" (iToParam 7)
+    res <- incrby r "counter" 7
     assertEqual "test incrby sets key that didn't exist" (RedisInteger 7) res
-    res' <- incrby r "counter" (iToParam 2)
+    res' <- incrby r "counter" 2
     assertEqual "test increment by" (RedisInteger 9) res'
 
 testDecr :: Test
 testDecr = testWithConn "decr" $ \r -> do
-    _ <- set r "counter" (iToParam 10)
+    _ <- set r "counter" (toParam 10)
     res <- decr r "counter"
     assertEqual "test decrement" (RedisInteger 9) res
 
 testDecrby :: Test
 testDecrby = testWithConn "decrby" $ \r -> do
-    _ <- set r "counter" (iToParam 10)
-    res <- decrby r "counter" (iToParam 7)
+    _ <- set r "counter" (toParam 10)
+    res <- decrby r "counter" 7
     assertEqual "test decrement by" (RedisInteger 3) res
 

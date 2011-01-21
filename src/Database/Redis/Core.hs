@@ -87,3 +87,6 @@ withRedisConn host port action = do
 -- localhost on port 6379 (this is the default Redis port).
 withRedisConn' :: (Server -> IO ()) -> IO ()
 withRedisConn' = withRedisConn "localhost" 6379
+
+toParam :: Show a => a -> B.ByteString
+toParam = B.pack . show

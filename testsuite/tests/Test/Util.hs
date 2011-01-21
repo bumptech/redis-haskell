@@ -27,6 +27,6 @@ withTestConn action = withRedisConn' $ \r -> do
     select' r >> flush r >> action r `finally` flush r
     where flush r   = do res <- flushdb r
                          assertBool "flush test database" res
-          select' r = do res <- select r $ iToParam 13
+          select' r = do res <- select r 13
                          assertBool "select database 13" res
 

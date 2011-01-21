@@ -36,9 +36,6 @@ eol = "\r\n"
 seol :: S.ByteString
 seol = "\r\n"
 
-toParam :: Show a => a -> B.ByteString
-toParam = B.pack . show
-
 formatRedisRequest :: [B.ByteString] -> Put 
 formatRedisRequest allVs = do
     putArgCount  allVs
