@@ -188,12 +188,12 @@ rpop :: (MonadIO m, Failure RedisError m)
 rpop r k = command r $ multiBulk r "RPOP" [k]
 
 blpop :: (MonadIO m, Failure RedisError m) 
-      => Server -> [RedisKey] -> RedisParam -> m RedisValue
-blpop r ks timeout = command r $ multiBulk r "BLPOP" (ks ++ [timeout])
+      => Server -> [RedisKey] -> Int -> m RedisValue
+blpop r ks timeout = command r $ multiBulk r "BLPOP" (ks ++ [toParam timeout])
 
 brpop :: (MonadIO m, Failure RedisError m) 
-      => Server -> [RedisKey] -> RedisParam -> m RedisValue
-brpop r ks timeout = command r $ multiBulk r "BRPOP" (ks ++ [timeout])
+      => Server -> [RedisKey] -> Int -> m RedisValue
+brpop r ks timeout = command r $ multiBulk r "BRPOP" (ks ++ [toParam timeout])
 
 rpoplpush :: (MonadIO m, Failure RedisError m) 
           => Server -> RedisKey -> RedisKey -> m RedisValue
