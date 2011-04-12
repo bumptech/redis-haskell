@@ -373,7 +373,8 @@ monitor :: (MonadIO m, Failure RedisError m)
         => Server -> m RedisValue
 monitor r = command r $ multiBulk r "MONITOR" []
 
-slaveof :: (MonadIO m, Failure RedisError m) 
-        => Server -> RedisParam -> RedisParam -> m RedisValue
-slaveof r host port = command r $ multiBulk r "SAVE" [host, port]
+-- FIXME this is not the slaveof command!
+{-slaveof :: (MonadIO m, Failure RedisError m) -}
+{-        => Server -> RedisParam -> RedisParam -> m RedisValue-}
+{-slaveof r host port = command r $ multiBulk r "SAVE" [host, port]-}
 
