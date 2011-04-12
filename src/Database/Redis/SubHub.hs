@@ -25,8 +25,6 @@ import Database.Redis.Core (withRedisConn, RedisKey,
                             errorWrap )
 import Database.Redis.Internal ( getReply, multiBulk )
 
-import Debug.Trace (trace)
-
 type SubHubQueue = Chan (RedisKey, RedisValue)
 type SubHubState = (Chan (RedisKey, SubHubQueue), TVar Bool)
 type SubMap = M.Map RedisKey [SubHubQueue]
@@ -60,6 +58,7 @@ hubloop sh@(SubHub host port state) tm = do
     case r of
         Right _ -> return ()
         Left (ServerError e) -> logError $ "{subhub} connection error (" ++ host ++ ":" ++ (show port) ++ ") " ++ e
+        Left _ -> fail "{subhub} system error"
     let (_, vrunning) = state
     running <- readTVarIO  vrunning
     when running $ (logReconnect >> threadDelay 200000 >> hubloop sh tm) -- loop (and reconnect)
