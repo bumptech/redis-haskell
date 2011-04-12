@@ -72,7 +72,7 @@ hubloop sh@(SubHub host port state) tm = do
     connectedLoop :: TVar SubMap -> Server -> S.ByteString -> IO ()
     connectedLoop tm conn buf = do
         submap <- readTVarIO tm
-        mr <- try $ getReply conn buf Nothing (Just 100000)
+        mr <- try $ errorWrap $ getReply conn buf Nothing (Just 100000)
         buf' <- case mr of
             Left OperationTimeout -> return buf
             Left e -> failure e

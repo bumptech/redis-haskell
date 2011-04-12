@@ -47,8 +47,6 @@ data RedisError = ServerError String
 
 instance Exception RedisError
 
--- This is kinda lame, but System.Timeout does not export its Timeout exception
--- to match on it
 errorWrap :: IO a -> IO a
 errorWrap f = wrapFailure (\e -> if (show e == "<<timeout>>") then OperationTimeout else (ServerError $ show e)) f
 
