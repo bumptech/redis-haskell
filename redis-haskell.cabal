@@ -1,33 +1,38 @@
 name:                redis-haskell
-version:             0.0.2
-stability:           Alpha
+version:             0.0.3
+stability:           Beta
 synopsis:            Haskell bindings for Redis, a persistent key-value store.
 description:         Haskell bindings for Redis, a persistent key-value store.
 category:            Database
 license:             BSD3
 license-file:        LICENSE
 author:              Brandur Leach <fyrerise@mutelight.org>
-maintainer:          Brandur Leach <fyrerise@mutelight.org>
+maintainer:          Jamie Turner <jamie@bu.mp>
 
 build-depends:       base>3 && <5,
                      network,
                      network-bytestring >= 0.1.3,
                      transformers,
                      mtl,
+                     stm>=2,
+                     containers>=0.4,
                      failure,
                      attoparsec>=0.8.2,
                      bytestring >= 0.9,
+                     old-locale,
                      binary >= 0.4,
+                     time,
                      binary-strict >= 0.4
 
 build-type:          Simple
 hs-source-dirs:      src
-tested-with:         GHC==6.12
+tested-with:         GHC==6.12, GHC==7.0
 
 exposed-modules:     Database.Redis,
                      Database.Redis.Command,
                      Database.Redis.Internal,
-                     Database.Redis.Core
+                     Database.Redis.Core,
+                     Database.Redis.SubHub
 
 extensions:          OverloadedStrings
 ghc-options:         -Wall
