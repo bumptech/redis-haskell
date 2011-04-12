@@ -1,4 +1,7 @@
  * More tests in testsuite
  * HASH and ZSET types
- * Pub/Sub
+ [i] Pub/Sub
+    [x] Error handling proper
+    [ ] Reconnection handling of re-sub
+    [ ] Unsub
  * Pipelining? 

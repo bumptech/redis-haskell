@@ -351,6 +351,16 @@ bgrewriteaof :: (MonadIO m, Failure RedisError m)
              => Server -> m RedisValue
 bgrewriteaof r = command r $ multiBulk r "BGREWRITEAOF" []
 
+
+-- ---------------------------------------------------------------------------
+-- PUBLISH
+-- 
+publish :: (MonadIO m, Failure RedisError m) 
+     => Server -> RedisKey -> RedisParam -> m RedisValue
+publish r channel pubvalue = command r $ multiBulk r "PUBLISH" [channel, pubvalue]
+
+
+
 -- ---------------------------------------------------------------------------
 -- Remote Server
 -- 
