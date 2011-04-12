@@ -6,7 +6,7 @@ import qualified Data.Map as M
 import Data.Map                   ( (!) )
 import Control.Monad.Trans        ( MonadIO, liftIO )
 import Control.Failure            ( failure, Failure )
-import Control.Exception          ( Exception(..), SomeException, try, finally )
+import Control.Exception          ( Exception(..), SomeException, try, bracket )
 import Control.Concurrent         ( forkIO, threadDelay )
 import Control.Monad              ( when )
 import Control.Concurrent.STM     (atomically)
@@ -143,6 +143,10 @@ unsub (SubHub _ _ (inq, _)) (id, keys, c) = do
     mapM_ (makeUnSubRequest c id) keys
   where
     makeUnSubRequest c id k = writeChan inq (False, id, k, c)
+
+withsub :: SubHub -> [RedisKey] -> (SubTicket -> IO a) -> IO a
+withsub s keys a =
+    bracket (sub s keys) (unsub s) a
 
 destroySubHub :: SubHub -> IO ()
 destroySubHub = undefined

@@ -5,5 +5,7 @@
     [x] Reconnection handling of re-sub
     [x] Moving timeout to network recv only
     [x] Pipeline management (partial buffers)
-    [ ] Unsub
+    [x] Unsub
+    [x] with.. convenience, etc
+    [ ] destroy hub, stop loop
  * Pipelining? 
