@@ -3,14 +3,19 @@
 module Database.Redis.Internal where
 
 import Control.Monad.Trans        ( MonadIO, liftIO )
-import Control.Failure            ( Failure )
+import Control.Failure            ( Failure, failure )
+import Control.Monad              ( when )
 import Database.Redis.Core
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.Char8 as S
 import Network.Socket.ByteString (recv, sendAll)
+import Network.Socket            ( fdSocket )
 import Data.Binary.Put (runPut, Put, putLazyByteString)
 import Data.Attoparsec (Parser, parse, Result(..), takeTill, string)
 import qualified Data.Attoparsec as Atto
+import System.Timeout             ( timeout )
+import Control.Concurrent         ( threadWaitRead )
+import System.Posix.Types         ( Fd(..) )
 
 
 -- ---------------------------------------------------------------------------
@@ -19,7 +24,7 @@ import qualified Data.Attoparsec as Atto
 --
 
 command :: (MonadIO m, Failure RedisError m) => Server -> IO () -> m RedisValue
-command r f = liftIO $ errorWrap (f >> getReply r Nothing)
+command r f = liftIO $ errorWrap (f >> getSimpleReply r)
 
 multiBulk :: Server -> B.ByteString -> [B.ByteString] -> IO ()
 multiBulk (Server s) command' vs = do
@@ -55,18 +60,32 @@ formatRedisRequest allVs = do
 -- Reply, using attoparsec
 --
 
-getReply :: Server -> Maybe (S.ByteString -> Result RedisValue) -> IO RedisValue
-getReply r Nothing = case parse parseReply "" of
-    Partial continueParse -> getReply r (Just continueParse)
+getSimpleReply :: Server -> IO RedisValue
+getSimpleReply s = do
+    (r, buf) <- getReply s "" Nothing Nothing
+    when (S.length buf > 0) $ failure $ ServerError "getSimpleReply should _never_ have buffer remaining"
+    return r
+
+getReply :: Server -> S.ByteString -> Maybe (S.ByteString -> Result RedisValue) -> Maybe Int -> IO (RedisValue, S.ByteString)
+getReply r i Nothing to = case parse parseReply i of
+    Done remaining result -> return (result, remaining)
+    Partial continueParse -> getReply r "" (Just continueParse) to
     _ -> fail "unexpected result from parser"
 
-getReply r@(Server h) (Just continueParse) = do
-    buf <- liftIO $ recv h 8096
+getReply r@(Server h) "" (Just continueParse) mto = do
+    buf <- case mto of
+        Just to -> do
+            mreadable <- timeout to $ threadWaitRead $ Fd (fdSocket h)
+            case mreadable of
+                Just () -> recv h 8096
+                Nothing -> failure OperationTimeout
+        Nothing -> recv h 8096
+    
     case (S.length buf) of
         0 -> error "connection closed by remote redis server"
         _ -> case (continueParse buf) of
-                Done _ result -> return result
-                Partial continueParse' -> getReply r (Just continueParse')
+                Done remaining result -> return (result, remaining)
+                Partial continueParse' -> getReply r "" (Just continueParse') mto
                 Fail _ _ msg -> error $ "attoparsec:" ++ msg
 
 parseReply :: Parser RedisValue

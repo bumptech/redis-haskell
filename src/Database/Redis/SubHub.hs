@@ -12,18 +12,19 @@ import Control.Concurrent.STM     (atomically)
 import Control.Concurrent.STM.TVar (TVar, readTVarIO, newTVarIO, readTVar, writeTVar)
 import Control.Concurrent.Chan    (Chan, newChan, writeChan, readChan, isEmptyChan)
 import Network                    ( HostName, PortNumber )
-import System.Timeout             ( timeout )
 import System.IO                  ( hPutStrLn, stderr )
 import qualified Data.Time.Format as DTF
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromJust)
 
 import Database.Redis.Core (withRedisConn, RedisKey,
                             RedisValue(..), Server, RedisError(..),
                             errorWrap )
 import Database.Redis.Internal ( getReply, multiBulk )
+import Debug.Trace (trace)
 
 type SubHubQueue = Chan (RedisKey, RedisValue)
 type SubHubState = (Chan (RedisKey, SubHubQueue), TVar Bool)
@@ -54,7 +55,7 @@ createSubHub host port = do
 
 hubloop :: SubHub -> TVar SubMap -> IO ()
 hubloop sh@(SubHub host port state) tm = do
-    r <- try $ withRedisConn host port $ connectedLoop tm
+    r <- try $ withRedisConn host port $ (\conn -> reconnect tm conn >> (return =<< connectedLoop tm conn ""))
     case r of
         Right _ -> return ()
         Left (ServerError e) -> logError $ "{subhub} connection error (" ++ host ++ ":" ++ (show port) ++ ") " ++ e
@@ -63,20 +64,25 @@ hubloop sh@(SubHub host port state) tm = do
     running <- readTVarIO  vrunning
     when running $ (logReconnect >> threadDelay 200000 >> hubloop sh tm) -- loop (and reconnect)
   where
-    connectedLoop :: TVar SubMap -> Server -> IO ()
-    connectedLoop tm conn = do
+    reconnect :: TVar SubMap -> Server -> IO ()
+    reconnect tm conn = do
         submap <- readTVarIO tm
-        mr <- try $ timeout 100000 $ errorWrap $ getReply conn Nothing
-        case mr of
-            Left (OperationTimeout) -> print "timeout"
-            Left (e) -> failure e
-            Right mv -> dispatch submap $ fromJust mv
+        mapM_ (issueSubCommand conn) (M.keys submap)
+
+    connectedLoop :: TVar SubMap -> Server -> S.ByteString -> IO ()
+    connectedLoop tm conn buf = do
+        submap <- readTVarIO tm
+        mr <- try $ getReply conn buf Nothing (Just 100000)
+        buf' <- case mr of
+            Left OperationTimeout -> return buf
+            Left e -> failure e
+            Right (v, b) -> dispatch submap v >> return b
 
         let (newsubs, vrunning) = state
         submap' <- addSubs conn newsubs submap
         atomically $ writeTVar tm submap'
         running <- readTVarIO vrunning
-        when running $ connectedLoop tm conn
+        when running $ connectedLoop tm conn buf'
 
     logReconnect = logError "{subhub} disconnect/reconnect to redis..."
 

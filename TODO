@@ -2,6 +2,8 @@
  * HASH and ZSET types
  [i] Pub/Sub (Alpha quality!)
     [x] Error handling proper
-    [ ] Reconnection handling of re-sub
+    [x] Reconnection handling of re-sub
+    [x] Moving timeout to network recv only
+    [x] Pipeline management (partial buffers)
     [ ] Unsub
  * Pipelining? 
