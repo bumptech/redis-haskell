@@ -12,6 +12,7 @@ import Data.Binary.Put (runPut, Put, putLazyByteString)
 import Data.Attoparsec (Parser, parse, Result(..), takeTill, string)
 import qualified Data.Attoparsec as Atto
 
+
 -- ---------------------------------------------------------------------------
 -- Command
 -- 
@@ -96,7 +97,7 @@ bulkReply = do
 multiBulkReply :: Parser RedisValue
 multiBulkReply = do
     numParams <- readIntLine
-    args <- mapM (\_-> string "$" >> bulkReply) [1..numParams]
+    args <- mapM (\_ -> parseReply) [1..numParams]
     return $ RedisMulti args
 
 integerReply :: Parser RedisValue
