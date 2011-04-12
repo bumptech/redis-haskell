@@ -3,6 +3,7 @@
 module Database.Redis.SubHub where
 
 import qualified Data.Map as M
+import Data.Map                   ( (!) )
 import Control.Monad.Trans        ( MonadIO, liftIO )
 import Control.Failure            ( failure, Failure )
 import Control.Exception          ( Exception(..), SomeException, try, finally )
@@ -19,6 +20,8 @@ import System.Locale (defaultTimeLocale)
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromJust)
+import System.UUID.V4 (uuid)
+import Data.UUID (UUID)
 
 import Database.Redis.Core (withRedisConn, RedisKey,
                             RedisValue(..), Server, RedisError(..),
@@ -27,9 +30,10 @@ import Database.Redis.Internal ( getReply, multiBulk )
 import Debug.Trace (trace)
 
 type SubHubQueue = Chan (RedisKey, RedisValue)
-type SubHubState = (Chan (RedisKey, SubHubQueue), TVar Bool)
-type SubMap = M.Map RedisKey [SubHubQueue]
+type SubHubState = (Chan (Bool, UUID, RedisKey, SubHubQueue), TVar Bool)
+type SubMap = M.Map RedisKey [(UUID, SubHubQueue)]
 data SubHub = SubHub HostName PortNumber SubHubState
+type SubTicket = (UUID, [RedisKey], SubHubQueue)
 
 standardFormat :: String
 standardFormat = "%Y/%m/%d %H:%M:%S"
@@ -91,37 +95,54 @@ hubloop sh@(SubHub host port state) tm = do
         if emp
             then (return submap)
             else (do
-                (nkey, chan) <- readChan newsubs
-                if (not $ M.member nkey submap)
-                    then issueSubCommand s nkey
-                    else return ()
-                let submap' = M.insertWith' (++) nkey [chan] submap
-                addSubs s newsubs submap'
+                (add, id, nkey, chan) <- readChan newsubs
+                if add then (do
+                    if (not $ M.member nkey submap)
+                        then issueSubCommand s nkey
+                        else return ()
+                    let submap' = M.insertWith' (++) nkey [(id, chan)] submap
+                    addSubs s newsubs submap'
+                    )
+                else (do
+                    let submap' = M.update (\l -> Just $ filter (\(i,_)-> i/=id) l) nkey submap
+                    when ((M.member nkey submap') && (length (submap' ! nkey) == 0)) $ issueUnSubCommand s nkey
+                    addSubs s newsubs submap'
+                    )
                 )
 
 issueSubCommand :: Server -> RedisKey -> IO ()
 issueSubCommand s k = errorWrap $ multiBulk s "SUBSCRIBE" [k]
 
+issueUnSubCommand :: Server -> RedisKey -> IO ()
+issueUnSubCommand s k = errorWrap $ multiBulk s "UNSUBSCRIBE" [k]
+
 dispatch :: SubMap -> RedisValue -> IO ()
 dispatch m (RedisMulti [RedisString "message", RedisString key, RedisString msg]) = do
     let keyl = B.fromChunks [key]
-    let chans = M.findWithDefault [] keyl m
+    let chans = map snd $ M.findWithDefault [] keyl m
     mapM_ (deliver keyl) chans
   where
     deliver key c = writeChan c (key, RedisString msg)
 
 dispatch _ _ = return () -- ignoring subscribe, unsubscribe
 
-sub :: SubHub -> [RedisKey] -> IO SubHubQueue
+sub :: SubHub -> [RedisKey] -> IO SubTicket
 sub (SubHub _ _ (inq, _)) keys = do
     c <- newChan
-    mapM_ (makeSubRequest c) keys
-    return c
+    id <- uuid
+    mapM_ (makeSubRequest c id) keys
+    return (id, keys, c)
   where
-    makeSubRequest c k = writeChan inq (k, c)
+    makeSubRequest c id k = writeChan inq (True, id, k, c)
 
-getsub :: SubHubQueue -> IO (RedisKey, RedisValue)
-getsub c = readChan c
+getsub :: SubTicket -> IO (RedisKey, RedisValue)
+getsub (_, _, c) = readChan c
+
+unsub :: SubHub -> SubTicket -> IO ()
+unsub (SubHub _ _ (inq, _)) (id, keys, c) = do
+    mapM_ (makeUnSubRequest c id) keys
+  where
+    makeUnSubRequest c id k = writeChan inq (False, id, k, c)
 
 destroySubHub :: SubHub -> IO ()
 destroySubHub = undefined

@@ -22,6 +22,7 @@ build-depends:       base>3 && <5,
                      old-locale,
                      binary >= 0.4,
                      time,
+                     system-uuid>=2,
                      binary-strict >= 0.4
 
 build-type:          Simple
