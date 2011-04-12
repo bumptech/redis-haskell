@@ -1,6 +1,6 @@
  * More tests in testsuite
  * HASH and ZSET types
- [i] Pub/Sub
+ [i] Pub/Sub (Alpha quality!)
     [x] Error handling proper
     [ ] Reconnection handling of re-sub
     [ ] Unsub
