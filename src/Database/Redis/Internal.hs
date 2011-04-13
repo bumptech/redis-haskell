@@ -80,13 +80,15 @@ getReply r@(Server h) "" (Just continueParse) mto = do
                 Just () -> recv h 8096
                 Nothing -> error "<<timeout>>" -- not ideal!
         Nothing -> recv h 8096
-    
+
     case (S.length buf) of
         0 -> error "connection closed by remote redis server"
         _ -> case (continueParse buf) of
                 Done remaining result -> return (result, remaining)
                 Partial continueParse' -> getReply r "" (Just continueParse') mto
                 Fail _ _ msg -> error $ "attoparsec:" ++ msg
+
+getReply _ _ _ _ = undefined
 
 parseReply :: Parser RedisValue
 parseReply = do
