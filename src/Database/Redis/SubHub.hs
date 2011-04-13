@@ -105,8 +105,10 @@ hubloop sh@(SubHub host port state) tm = do
                     )
                 else (do
                     let submap' = M.update (\l -> Just $ filter (\(i,_)-> i/=id) l) nkey submap
-                    when ((M.member nkey submap') && (length (submap' ! nkey) == 0)) $ issueUnSubCommand s nkey
-                    addSubs s newsubs submap'
+                    let empty = ((M.member nkey submap') && (length (submap' ! nkey) == 0))
+                    when empty $ issueUnSubCommand s nkey
+                    let submap'' = if empty then M.delete nkey submap' else submap'
+                    addSubs s newsubs submap''
                     )
                 )
 
@@ -149,8 +151,8 @@ withsub s keys a =
     bracket (sub s keys) (unsub s) a
 
 destroySubHub :: SubHub -> IO ()
-destroySubHub = undefined
-
+destroySubHub (SubHub _ _ (_, trunning)) = do
+    atomically $ writeTVar trunning False
 
 {-
  -
