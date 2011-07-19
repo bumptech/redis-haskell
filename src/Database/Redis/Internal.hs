@@ -111,9 +111,12 @@ errorReply = readLineContents >>= \s -> error $ "redis daemon error: " ++ (S.unp
 bulkReply :: Parser RedisValue
 bulkReply = do
     i <- readIntLine
-    s <- Atto.take i
-    _ <- string seol
-    return $ RedisString s
+    if (i == -1)
+    then return $ RedisNil 
+    else do
+        s <- Atto.take i
+        _ <- string seol
+        return $ RedisString s
 
 multiBulkReply :: Parser RedisValue
 multiBulkReply = do
