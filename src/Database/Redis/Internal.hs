@@ -12,6 +12,7 @@ import Network.Socket.ByteString (recv, sendAll)
 import Network.Socket            ( fdSocket )
 import Data.Binary.Put (runPut, Put, putLazyByteString)
 import Data.Attoparsec (Parser, parse, Result(..), takeTill, string)
+import Data.Attoparsec.Char8 (decimal)
 import qualified Data.Attoparsec as Atto
 import System.Timeout             ( timeout )
 import Control.Concurrent         ( threadWaitRead )
@@ -131,8 +132,9 @@ integerReply = do
 
 readIntLine :: Parser Int
 readIntLine = do
-    line <- readLineContents
-    return $ read $ S.unpack line
+    v <- decimal
+    _ <- string seol
+    return v
 
 readLineContents :: Parser S.ByteString
 readLineContents = do
