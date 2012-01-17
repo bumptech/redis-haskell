@@ -68,8 +68,8 @@ getSimpleReply s = do
 
 getReply :: Server -> S.ByteString -> Maybe (S.ByteString -> Result RedisValue) -> Maybe Int -> IO (RedisValue, S.ByteString)
 getReply r i Nothing to = case parse parseReply i of
-    Done remaining result -> return (result, remaining)
-    Partial continueParse -> getReply r "" (Just continueParse) to
+    Atto.Done remaining result -> return (result, remaining)
+    Atto.Partial continueParse -> getReply r "" (Just continueParse) to
     _ -> fail "unexpected result from parser"
 
 getReply r@(Server h) "" (Just continueParse) mto = do
@@ -84,9 +84,9 @@ getReply r@(Server h) "" (Just continueParse) mto = do
     case (S.length buf) of
         0 -> error "connection closed by remote redis server"
         _ -> case (continueParse buf) of
-                Done remaining result -> return (result, remaining)
-                Partial continueParse' -> getReply r "" (Just continueParse') mto
-                Fail _ _ msg -> error $ "attoparsec:" ++ msg
+                Atto.Done remaining result -> return (result, remaining)
+                Atto.Partial continueParse' -> getReply r "" (Just continueParse') mto
+                Atto.Fail _ _ msg -> error $ "attoparsec:" ++ msg
 
 getReply _ _ _ _ = undefined
 
