@@ -14,6 +14,10 @@ Unfortunately this package is not yet available from Hackage. Therefore to use t
     $ cd redis-haskell
     $ cabal install
     
-And update your project's `.cabal` file to include:
+If Cabal complains of a missing `"Missing C library: uuid"`, then (on Ubuntu/Debian):
+
+    $ sudo apt-get install uuid-dev
+
+And finally update your project's `.cabal` file to include:
 
     ,redis-haskell >= 0.0.3.2
