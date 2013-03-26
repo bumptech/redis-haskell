@@ -12,12 +12,11 @@ import Network.Socket.ByteString (recv, sendAll)
 import Network.Socket            ( fdSocket )
 import Data.Binary.Put (runPut, Put, putLazyByteString)
 import Data.Attoparsec (Parser, parse, Result(..), takeTill, string)
-import Data.Attoparsec.Char8 (decimal)
+import Data.Attoparsec.Char8 (signed, decimal)
 import qualified Data.Attoparsec as Atto
 import System.Timeout             ( timeout )
 import Control.Concurrent         ( threadWaitRead )
 import System.Posix.Types         ( Fd(..) )
-
 
 -- ---------------------------------------------------------------------------
 -- Command
@@ -132,7 +131,7 @@ integerReply = do
 
 readIntLine :: Parser Int
 readIntLine = do
-    v <- decimal
+    v <- signed decimal
     _ <- string seol
     return v
 
