@@ -267,10 +267,18 @@ zadd :: (MonadIO m, Failure RedisError m)
         => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
 zadd r k s v = command r $ multiBulk r "ZADD" [k, s, v]
 
+zrange :: (MonadIO m, Failure RedisError m)
+        => Server -> RedisKey -> Int -> Int -> m RedisValue
+zrange r k st end = 
+    command r $ multiBulk r "ZRANGE" [k, toParam st, toParam end]
+
+zrem :: (MonadIO m, Failure RedisError m)
+        => Server -> RedisKey -> [RedisParam] -> m RedisValue
+zrem r k vals = command r $ multiBulk r "ZREM" (k : vals)
+
 {-
 zremove k member = "ZREM"
 zIncrementBy k = "ZINCRBY"
-zrange k start end = "ZRANGE"
 reverseRange k start end = "ZREVRANGE"
 rangeByScore k min max = "ZRANGEBYSCORE"
 zcardinality k = "ZCARD"
