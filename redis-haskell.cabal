@@ -1,5 +1,5 @@
 name:                redis-haskell
-version:             0.0.3.4
+version:             0.0.3.5
 stability:           Beta
 synopsis:            Haskell bindings for Redis, a persistent key-value store.
 description:         Haskell bindings for Redis, a persistent key-value store.
