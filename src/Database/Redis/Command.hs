@@ -277,9 +277,19 @@ zrevrange :: (MonadIO m, Failure RedisError m)
 zrevrange r k st end =
     command r $ multiBulk r "ZREVRANGE" [k, toParam st, toParam end]
 
+zrevrangebyscore :: (MonadIO m, Failure RedisError m, Show a, Show b)
+        => Server -> RedisKey -> a -> b -> m RedisValue
+zrevrangebyscore r k st end =
+    command r $ multiBulk r "ZREVRANGEBYSCORE" [k, toParam st, toParam end]
+
 zrem :: (MonadIO m, Failure RedisError m)
         => Server -> RedisKey -> [RedisParam] -> m RedisValue
 zrem r k vals = command r $ multiBulk r "ZREM" (k : vals)
+
+zremrangebyscore :: (MonadIO m, Failure RedisError m, Show a, Show b)
+        => Server -> RedisKey -> a -> b -> m RedisValue
+zremrangebyscore r k st end =
+    command r $ multiBulk r "ZREMRANGEBYSCORE" [k, toParam st, toParam end]
 
 {-
 zremove k member = "ZREM"
