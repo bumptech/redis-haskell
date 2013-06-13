@@ -263,6 +263,10 @@ srandmember r k = command r $ multiBulk r "SRANDMEMBER" [k]
 -- Zset
 --
 
+zcard :: (MonadIO m, Failure RedisError m)
+         => Server -> RedisKey -> m RedisValue
+zcard r k = command r $ multiBulk r "ZCARD" [k]
+
 zadd :: (MonadIO m, Failure RedisError m)
         => Server -> RedisKey -> RedisParam -> RedisParam -> m RedisValue
 zadd r k s v = command r $ multiBulk r "ZADD" [k, s, v]
